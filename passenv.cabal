@@ -1,0 +1,57 @@
+cabal-version:       2.2
+name:                passenv
+version:             0.0.0
+synopsis:            Fetches secrets from your password store and adds them to your environment.
+description:
+   passenv is a tool and Haskell library for fetching secrets from a password
+   store managed by @pass@ and adding them to your environment.
+   .
+   See <https://github.com/splintah/passenv> for more information.
+homepage:            https://github.com/splintah/passenv
+bug-reports:         https://github.com/splintah/passenv/issues
+license:             GPL-3.0-or-later
+license-file:        LICENSE
+author:              Splinter Suidman
+maintainer:          Splinter Suidman
+copyright:           (c) Splinter Suidman, 2020
+build-type:          Simple
+extra-source-files:  CHANGELOG.md
+
+common common
+  ghc-options: -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns
+
+library
+  import:              common
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  exposed-modules:     Passenv
+                     , Passenv.Builder
+                     , Passenv.Env
+                     , Passenv.Pass
+                     , Passenv.Pass.KeyValue
+                     , Passenv.Pass.Password
+                     , Passenv.Util
+  build-depends:       base ^>= 4.13
+                     , containers ^>=0.6
+                     , data-default ^>=0.7
+                     , exceptions ^>=0.10
+                     , megaparsec ^>=7.0
+                     , mtl ^>=2.2
+                     , process ^>=1.6
+                     , unix ^>=2.7
+
+executable passenv-example
+  import:              common
+  main-is:             Main.hs
+  hs-source-dirs:      app/passenv-example
+  default-language:    Haskell2010
+  build-depends:       base
+                     , passenv
+
+executable passkey
+  import:              common
+  main-is:             Main.hs
+  hs-source-dirs:      app/passkey
+  default-language:    Haskell2010
+  build-depends:       base
+                     , passenv

@@ -1,0 +1,9 @@
+# Editor files
+*~
+
+# Cabal files
+dist
+dist-newstyle
+
+# Nix files
+result*
