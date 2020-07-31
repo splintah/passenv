@@ -132,7 +132,7 @@ The `env` builder will build a list with the new environment variables; in this
 case, that list will be:
 
 ```haskell
-[("GITHUB_PASSWORD", "correct horse battery staple")]`
+[("GITHUB_PASSWORD", "correct horse battery staple")]
 ```
 
 The `passenv` function will run this environment builder, and execute the
