@@ -1,0 +1,620 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+passenv
+Copyright (C) 2020 Splinter Suidman
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see &lt;http://www.gnu.org/licenses/&gt;.
+-}</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-pragma">{-# LANGUAGE DeriveAnyClass             #-}</span><span>
+</span><span id="line-15"></span><span class="hs-pragma">{-# LANGUAGE DerivingStrategies         #-}</span><span>
+</span><span id="line-16"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances          #-}</span><span>
+</span><span id="line-17"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-18"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase                 #-}</span><span>
+</span><span id="line-19"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses      #-}</span><span>
+</span><span id="line-20"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances       #-}</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">{-|
+Module      : Passenv.Builder
+Description : A builder for monoidal values in a monadic context.
+Copyright   : (c) Splinter Suidman, 2020
+License     : GPL-3
+Portability : portable
+
+A builder for monoidal values in a monadic context.
+
+This module contains the 'Builder' type that is used for building the
+'Passenv.Env.Env', but also for the underlying 'Passenv.Env.Var's. And
+it can be used for any 'Monoid'al value, and in any 'Monad'ic context
+(an 'Applicative' context is often enough).
+
+=== 'IsString'
+
+This module also exports an 'IsString' instance for 'Builder's, which
+is useful when building 'String's or other types with an 'IsString'
+instance.
+
+For example, if we have a builder
+
+@
+stringBuilder :: 'Applicative' m =&gt; 'Builder' m 'String'
+@
+
+then we can compose it with a 'String' literal:
+
+@
+stringBuilder '&lt;&gt;' &quot;some string&quot; :: 'Applicative' m =&gt; 'Builder' m 'String'
+@
+
+For this you must enable the @OverloadedStrings@ language extension,
+by adding the following to the top of your file:
+
+&gt; {-\# LANGUAGE OverloadedStrings \#-}
+-}</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Passenv.Builder</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- ** Builder</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier">Builder</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Builder.html#mkBuilder"><span class="hs-identifier">mkBuilder</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier">runBuilder</span></a></span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** @Has@ classes</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Builder.html#HasPassword"><span class="hs-identifier">HasPassword</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Builder.html#HasKeyValues"><span class="hs-identifier">HasKeyValues</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Builder.html#KeyValueException"><span class="hs-identifier">KeyValueException</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Control.Exception</span></a></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Exception</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier">Control.Monad.Catch</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier">MonadCatch</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier">catch</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier">MonadThrow</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier">throwM</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">Control.Monad.Except</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">MonadError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">catchError</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">throwError</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">Control.Monad.Reader</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">MonadReader</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">ask</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">local</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">Control.Monad.State</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">MonadState</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">get</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">put</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">Control.Monad.Trans</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">MonadIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">liftIO</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier">MonadTrans</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier">lift</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">Control.Monad.Writer</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">MonadWriter</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Data.Monoid</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Ap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Ap</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">getAp</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Data.String</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">IsString</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">----------------------------------------</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- Builder -----------------------------</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | A builder for monoidal values in a monadic context.</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- 'Builder's are 'Monoid's if @a@ is a 'Monoid' and @m@ is an</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- 'Applicative', and can be composed with @('&lt;&gt;')@. 'Builder's are</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- also 'Monad's if @m@ is a 'Monad'.</span><span>
+</span><span id="line-89"></span><span class="hs-keyword">newtype</span><span> </span><span id="Builder"><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-var">Builder</span></a></span></span><span> </span><span id="local-6989586621679094745"><span class="annot"><a href="#local-6989586621679094745"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679094744"><span class="annot"><a href="#local-6989586621679094744"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Builder"><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-var">Builder</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="_runBuilder"><span class="annot"><span class="annottext">Builder m a -&gt; Ap m a
+</span><a href="Passenv.Builder.html#_runBuilder"><span class="hs-identifier hs-var hs-var">_runBuilder</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094745"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094744"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679094629"><span id="local-6989586621679094631"><span id="local-6989586621679094633"><span class="annot"><span class="annottext">Int -&gt; Builder m a -&gt; ShowS
+[Builder m a] -&gt; ShowS
+Builder m a -&gt; String
+(Int -&gt; Builder m a -&gt; ShowS)
+-&gt; (Builder m a -&gt; String)
+-&gt; ([Builder m a] -&gt; ShowS)
+-&gt; Show (Builder m a)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall (m :: * -&gt; *) a. Show (m a) =&gt; Int -&gt; Builder m a -&gt; ShowS
+forall (m :: * -&gt; *) a. Show (m a) =&gt; [Builder m a] -&gt; ShowS
+forall (m :: * -&gt; *) a. Show (m a) =&gt; Builder m a -&gt; String
+showList :: [Builder m a] -&gt; ShowS
+$cshowList :: forall (m :: * -&gt; *) a. Show (m a) =&gt; [Builder m a] -&gt; ShowS
+show :: Builder m a -&gt; String
+$cshow :: forall (m :: * -&gt; *) a. Show (m a) =&gt; Builder m a -&gt; String
+showsPrec :: Int -&gt; Builder m a -&gt; ShowS
+$cshowsPrec :: forall (m :: * -&gt; *) a. Show (m a) =&gt; Int -&gt; Builder m a -&gt; ShowS
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679094620"><span id="local-6989586621679094622"><span id="local-6989586621679094624"><span id="local-6989586621679094626"><span class="annot"><span class="annottext">ReadPrec [Builder m a]
+ReadPrec (Builder m a)
+Int -&gt; ReadS (Builder m a)
+ReadS [Builder m a]
+(Int -&gt; ReadS (Builder m a))
+-&gt; ReadS [Builder m a]
+-&gt; ReadPrec (Builder m a)
+-&gt; ReadPrec [Builder m a]
+-&gt; Read (Builder m a)
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+forall (m :: * -&gt; *) a. Read (m a) =&gt; ReadPrec [Builder m a]
+forall (m :: * -&gt; *) a. Read (m a) =&gt; ReadPrec (Builder m a)
+forall (m :: * -&gt; *) a. Read (m a) =&gt; Int -&gt; ReadS (Builder m a)
+forall (m :: * -&gt; *) a. Read (m a) =&gt; ReadS [Builder m a]
+readListPrec :: ReadPrec [Builder m a]
+$creadListPrec :: forall (m :: * -&gt; *) a. Read (m a) =&gt; ReadPrec [Builder m a]
+readPrec :: ReadPrec (Builder m a)
+$creadPrec :: forall (m :: * -&gt; *) a. Read (m a) =&gt; ReadPrec (Builder m a)
+readList :: ReadS [Builder m a]
+$creadList :: forall (m :: * -&gt; *) a. Read (m a) =&gt; ReadS [Builder m a]
+readsPrec :: Int -&gt; ReadS (Builder m a)
+$creadsPrec :: forall (m :: * -&gt; *) a. Read (m a) =&gt; Int -&gt; ReadS (Builder m a)
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></a></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679094613"><span id="local-6989586621679094615"><span id="local-6989586621679094617"><span class="annot"><span class="annottext">b -&gt; Builder m a -&gt; Builder m a
+NonEmpty (Builder m a) -&gt; Builder m a
+Builder m a -&gt; Builder m a -&gt; Builder m a
+(Builder m a -&gt; Builder m a -&gt; Builder m a)
+-&gt; (NonEmpty (Builder m a) -&gt; Builder m a)
+-&gt; (forall b. Integral b =&gt; b -&gt; Builder m a -&gt; Builder m a)
+-&gt; Semigroup (Builder m a)
+forall b. Integral b =&gt; b -&gt; Builder m a -&gt; Builder m a
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+forall (m :: * -&gt; *) a.
+(Applicative m, Semigroup a) =&gt;
+NonEmpty (Builder m a) -&gt; Builder m a
+forall (m :: * -&gt; *) a.
+(Applicative m, Semigroup a) =&gt;
+Builder m a -&gt; Builder m a -&gt; Builder m a
+forall (m :: * -&gt; *) a b.
+(Applicative m, Semigroup a, Integral b) =&gt;
+b -&gt; Builder m a -&gt; Builder m a
+stimes :: b -&gt; Builder m a -&gt; Builder m a
+$cstimes :: forall (m :: * -&gt; *) a b.
+(Applicative m, Semigroup a, Integral b) =&gt;
+b -&gt; Builder m a -&gt; Builder m a
+sconcat :: NonEmpty (Builder m a) -&gt; Builder m a
+$csconcat :: forall (m :: * -&gt; *) a.
+(Applicative m, Semigroup a) =&gt;
+NonEmpty (Builder m a) -&gt; Builder m a
+&lt;&gt; :: Builder m a -&gt; Builder m a -&gt; Builder m a
+$c&lt;&gt; :: forall (m :: * -&gt; *) a.
+(Applicative m, Semigroup a) =&gt;
+Builder m a -&gt; Builder m a -&gt; Builder m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679094605"><span id="local-6989586621679094607"><span id="local-6989586621679094609"><span class="annot"><span class="annottext">Semigroup (Builder m a)
+Builder m a
+Semigroup (Builder m a) =&gt;
+Builder m a
+-&gt; (Builder m a -&gt; Builder m a -&gt; Builder m a)
+-&gt; ([Builder m a] -&gt; Builder m a)
+-&gt; Monoid (Builder m a)
+[Builder m a] -&gt; Builder m a
+Builder m a -&gt; Builder m a -&gt; Builder m a
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall (m :: * -&gt; *) a.
+(Applicative m, Monoid a) =&gt;
+Semigroup (Builder m a)
+forall (m :: * -&gt; *) a. (Applicative m, Monoid a) =&gt; Builder m a
+forall (m :: * -&gt; *) a.
+(Applicative m, Monoid a) =&gt;
+[Builder m a] -&gt; Builder m a
+forall (m :: * -&gt; *) a.
+(Applicative m, Monoid a) =&gt;
+Builder m a -&gt; Builder m a -&gt; Builder m a
+mconcat :: [Builder m a] -&gt; Builder m a
+$cmconcat :: forall (m :: * -&gt; *) a.
+(Applicative m, Monoid a) =&gt;
+[Builder m a] -&gt; Builder m a
+mappend :: Builder m a -&gt; Builder m a -&gt; Builder m a
+$cmappend :: forall (m :: * -&gt; *) a.
+(Applicative m, Monoid a) =&gt;
+Builder m a -&gt; Builder m a -&gt; Builder m a
+mempty :: Builder m a
+$cmempty :: forall (m :: * -&gt; *) a. (Applicative m, Monoid a) =&gt; Builder m a
+$cp1Monoid :: forall (m :: * -&gt; *) a.
+(Applicative m, Monoid a) =&gt;
+Semigroup (Builder m a)
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679094600"><span id="local-6989586621679094602"><span class="annot"><span class="annottext">a -&gt; Builder m b -&gt; Builder m a
+(a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+(forall a b. (a -&gt; b) -&gt; Builder m a -&gt; Builder m b)
+-&gt; (forall a b. a -&gt; Builder m b -&gt; Builder m a)
+-&gt; Functor (Builder m)
+forall a b. a -&gt; Builder m b -&gt; Builder m a
+forall a b. (a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+a -&gt; Builder m b -&gt; Builder m a
+forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+&lt;$ :: a -&gt; Builder m b -&gt; Builder m a
+$c&lt;$ :: forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+a -&gt; Builder m b -&gt; Builder m a
+fmap :: (a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+$cfmap :: forall (m :: * -&gt; *) a b.
+Functor m =&gt;
+(a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679094588"><span id="local-6989586621679094590"><span id="local-6989586621679094592"><span id="local-6989586621679094594"><span id="local-6989586621679094596"><span class="annot"><span class="annottext">Functor (Builder m)
+a -&gt; Builder m a
+Functor (Builder m) =&gt;
+(forall a. a -&gt; Builder m a)
+-&gt; (forall a b. Builder m (a -&gt; b) -&gt; Builder m a -&gt; Builder m b)
+-&gt; (forall a b c.
+    (a -&gt; b -&gt; c) -&gt; Builder m a -&gt; Builder m b -&gt; Builder m c)
+-&gt; (forall a b. Builder m a -&gt; Builder m b -&gt; Builder m b)
+-&gt; (forall a b. Builder m a -&gt; Builder m b -&gt; Builder m a)
+-&gt; Applicative (Builder m)
+Builder m a -&gt; Builder m b -&gt; Builder m b
+Builder m a -&gt; Builder m b -&gt; Builder m a
+Builder m (a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+(a -&gt; b -&gt; c) -&gt; Builder m a -&gt; Builder m b -&gt; Builder m c
+forall a. a -&gt; Builder m a
+forall a b. Builder m a -&gt; Builder m b -&gt; Builder m a
+forall a b. Builder m a -&gt; Builder m b -&gt; Builder m b
+forall a b. Builder m (a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+forall a b c.
+(a -&gt; b -&gt; c) -&gt; Builder m a -&gt; Builder m b -&gt; Builder m c
+forall (f :: * -&gt; *).
+Functor f =&gt;
+(forall a. a -&gt; f a)
+-&gt; (forall a b. f (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c)
+-&gt; (forall a b. f a -&gt; f b -&gt; f b)
+-&gt; (forall a b. f a -&gt; f b -&gt; f a)
+-&gt; Applicative f
+forall (m :: * -&gt; *). Applicative m =&gt; Functor (Builder m)
+forall (m :: * -&gt; *) a. Applicative m =&gt; a -&gt; Builder m a
+forall (m :: * -&gt; *) a b.
+Applicative m =&gt;
+Builder m a -&gt; Builder m b -&gt; Builder m a
+forall (m :: * -&gt; *) a b.
+Applicative m =&gt;
+Builder m a -&gt; Builder m b -&gt; Builder m b
+forall (m :: * -&gt; *) a b.
+Applicative m =&gt;
+Builder m (a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+forall (m :: * -&gt; *) a b c.
+Applicative m =&gt;
+(a -&gt; b -&gt; c) -&gt; Builder m a -&gt; Builder m b -&gt; Builder m c
+&lt;* :: Builder m a -&gt; Builder m b -&gt; Builder m a
+$c&lt;* :: forall (m :: * -&gt; *) a b.
+Applicative m =&gt;
+Builder m a -&gt; Builder m b -&gt; Builder m a
+*&gt; :: Builder m a -&gt; Builder m b -&gt; Builder m b
+$c*&gt; :: forall (m :: * -&gt; *) a b.
+Applicative m =&gt;
+Builder m a -&gt; Builder m b -&gt; Builder m b
+liftA2 :: (a -&gt; b -&gt; c) -&gt; Builder m a -&gt; Builder m b -&gt; Builder m c
+$cliftA2 :: forall (m :: * -&gt; *) a b c.
+Applicative m =&gt;
+(a -&gt; b -&gt; c) -&gt; Builder m a -&gt; Builder m b -&gt; Builder m c
+&lt;*&gt; :: Builder m (a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+$c&lt;*&gt; :: forall (m :: * -&gt; *) a b.
+Applicative m =&gt;
+Builder m (a -&gt; b) -&gt; Builder m a -&gt; Builder m b
+pure :: a -&gt; Builder m a
+$cpure :: forall (m :: * -&gt; *) a. Applicative m =&gt; a -&gt; Builder m a
+$cp1Applicative :: forall (m :: * -&gt; *). Applicative m =&gt; Functor (Builder m)
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Applicative</span></a></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679094580"><span id="local-6989586621679094582"><span id="local-6989586621679094584"><span class="annot"><span class="annottext">Applicative (Builder m)
+a -&gt; Builder m a
+Applicative (Builder m) =&gt;
+(forall a b. Builder m a -&gt; (a -&gt; Builder m b) -&gt; Builder m b)
+-&gt; (forall a b. Builder m a -&gt; Builder m b -&gt; Builder m b)
+-&gt; (forall a. a -&gt; Builder m a)
+-&gt; Monad (Builder m)
+Builder m a -&gt; (a -&gt; Builder m b) -&gt; Builder m b
+Builder m a -&gt; Builder m b -&gt; Builder m b
+forall a. a -&gt; Builder m a
+forall a b. Builder m a -&gt; Builder m b -&gt; Builder m b
+forall a b. Builder m a -&gt; (a -&gt; Builder m b) -&gt; Builder m b
+forall (m :: * -&gt; *). Monad m =&gt; Applicative (Builder m)
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; Builder m a
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Builder m a -&gt; Builder m b -&gt; Builder m b
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Builder m a -&gt; (a -&gt; Builder m b) -&gt; Builder m b
+forall (m :: * -&gt; *).
+Applicative m =&gt;
+(forall a b. m a -&gt; (a -&gt; m b) -&gt; m b)
+-&gt; (forall a b. m a -&gt; m b -&gt; m b)
+-&gt; (forall a. a -&gt; m a)
+-&gt; Monad m
+return :: a -&gt; Builder m a
+$creturn :: forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; Builder m a
+&gt;&gt; :: Builder m a -&gt; Builder m b -&gt; Builder m b
+$c&gt;&gt; :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Builder m a -&gt; Builder m b -&gt; Builder m b
+&gt;&gt;= :: Builder m a -&gt; (a -&gt; Builder m b) -&gt; Builder m b
+$c&gt;&gt;= :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+Builder m a -&gt; (a -&gt; Builder m b) -&gt; Builder m b
+$cp1Monad :: forall (m :: * -&gt; *). Monad m =&gt; Applicative (Builder m)
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monad</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | Make a 'Builder' from a monadic action.</span><span>
+</span><span id="line-94"></span><span id="local-6989586621679094725"><span id="local-6989586621679094726"><span class="annot"><a href="Passenv.Builder.html#mkBuilder"><span class="hs-identifier hs-type">mkBuilder</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679094726"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094725"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094726"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094725"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-95"></span><span id="mkBuilder"><span class="annot"><span class="annottext">mkBuilder :: m a -&gt; Builder m a
+</span><a href="Passenv.Builder.html#mkBuilder"><span class="hs-identifier hs-var hs-var">mkBuilder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ap m a -&gt; Builder m a
+forall (m :: * -&gt; *) a. Ap m a -&gt; Builder m a
+</span><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-var">Builder</span></a></span><span> </span><span class="annot"><span class="annottext">(Ap m a -&gt; Builder m a) -&gt; (m a -&gt; Ap m a) -&gt; m a -&gt; Builder m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; Ap m a
+forall k (f :: k -&gt; *) (a :: k). f a -&gt; Ap f a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">Ap</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- | Run a 'Builder', returning the underlying monadic action.</span><span>
+</span><span id="line-98"></span><span id="local-6989586621679094700"><span id="local-6989586621679094701"><span class="annot"><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier hs-type">runBuilder</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094701"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094700"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679094701"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094700"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-99"></span><span id="runBuilder"><span class="annot"><span class="annottext">runBuilder :: Builder m a -&gt; m a
+</span><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier hs-var hs-var">runBuilder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ap m a -&gt; m a
+forall k (f :: k -&gt; *) (a :: k). Ap f a -&gt; f a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var">getAp</span></a></span><span> </span><span class="annot"><span class="annottext">(Ap m a -&gt; m a) -&gt; (Builder m a -&gt; Ap m a) -&gt; Builder m a -&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Builder m a -&gt; Ap m a
+forall (m :: * -&gt; *) a. Builder m a -&gt; Ap m a
+</span><a href="Passenv.Builder.html#_runBuilder"><span class="hs-identifier hs-var hs-var">_runBuilder</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">----------------------------------------</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- Builder instances -------------------</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier hs-type">MonadTrans</span></a></span><span> </span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621679094575"><span class="annot"><span class="annottext">lift :: m a -&gt; Builder m a
+</span><a href="#local-6989586621679094575"><span class="hs-identifier hs-var hs-var hs-var hs-var">lift</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Builder m a
+forall (m :: * -&gt; *) a. m a -&gt; Builder m a
+</span><a href="Passenv.Builder.html#mkBuilder"><span class="hs-identifier hs-var">mkBuilder</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span id="local-6989586621679094574"><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094574"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094574"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>  </span><span id="local-6989586621679094570"><span class="annot"><span class="annottext">liftIO :: IO a -&gt; Builder m a
+</span><a href="#local-6989586621679094570"><span class="hs-identifier hs-var hs-var hs-var hs-var">liftIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Builder m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; Builder m a) -&gt; (IO a -&gt; m a) -&gt; IO a -&gt; Builder m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">liftIO</span></a></span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span id="local-6989586621679094569"><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier hs-type">MonadThrow</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094569"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier hs-type">MonadThrow</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094569"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-111"></span><span>  </span><span id="local-6989586621679094565"><span class="annot"><span class="annottext">throwM :: e -&gt; Builder m a
+</span><a href="#local-6989586621679094565"><span class="hs-identifier hs-var hs-var hs-var hs-var">throwM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Builder m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; Builder m a) -&gt; (e -&gt; m a) -&gt; e -&gt; Builder m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">e -&gt; m a
+forall (m :: * -&gt; *) e a. (MonadThrow m, Exception e) =&gt; e -&gt; m a
+</span><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier hs-var">throwM</span></a></span></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span id="local-6989586621679094564"><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier hs-type">MonadCatch</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094564"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier hs-type">MonadCatch</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094564"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-114"></span><span>  </span><span id="local-6989586621679094560"><span class="annot"><span class="annottext">catch :: Builder m a -&gt; (e -&gt; Builder m a) -&gt; Builder m a
+</span><a href="#local-6989586621679094560"><span class="hs-identifier hs-var hs-var hs-var hs-var">catch</span></a></span></span><span> </span><span id="local-6989586621679094559"><span class="annot"><span class="annottext">m :: Builder m a
+</span><a href="#local-6989586621679094559"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679094558"><span class="annot"><span class="annottext">c :: e -&gt; Builder m a
+</span><a href="#local-6989586621679094558"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Builder m a
+forall (m :: * -&gt; *) a. m a -&gt; Builder m a
+</span><a href="Passenv.Builder.html#mkBuilder"><span class="hs-identifier hs-var">mkBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; Builder m a) -&gt; m a -&gt; Builder m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Builder m a -&gt; m a
+forall (m :: * -&gt; *) a. Builder m a -&gt; m a
+</span><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier hs-var">runBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Builder m a
+</span><a href="#local-6989586621679094559"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; (e -&gt; m a) -&gt; m a
+forall (m :: * -&gt; *) e a.
+(MonadCatch m, Exception e) =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-operator hs-var">`catch`</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Builder m a -&gt; m a
+forall (m :: * -&gt; *) a. Builder m a -&gt; m a
+</span><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier hs-var">runBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">(Builder m a -&gt; m a) -&gt; (e -&gt; Builder m a) -&gt; e -&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">e -&gt; Builder m a
+</span><a href="#local-6989586621679094558"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span id="local-6989586621679094556"><span id="local-6989586621679094557"><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094551"><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadReader</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094557"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094556"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadReader</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094557"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094556"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-117"></span><span>  </span><span id="local-6989586621679094549"><span class="annot"><span class="annottext">ask :: Builder m r
+</span><a href="#local-6989586621679094549"><span class="hs-identifier hs-var hs-var hs-var hs-var">ask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m r -&gt; Builder m r
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">m r
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">ask</span></a></span><span>
+</span><span id="line-118"></span><span>  </span><span id="local-6989586621679094548"><span class="annot"><span class="annottext">local :: (r -&gt; r) -&gt; Builder m a -&gt; Builder m a
+</span><a href="#local-6989586621679094548"><span class="hs-identifier hs-var hs-var hs-var hs-var">local</span></a></span></span><span> </span><span id="local-6989586621679094547"><span class="annot"><span class="annottext">f :: r -&gt; r
+</span><a href="#local-6989586621679094547"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Builder m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; Builder m a)
+-&gt; (Builder m a -&gt; m a) -&gt; Builder m a -&gt; Builder m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">(r -&gt; r) -&gt; m a -&gt; m a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">local</span></a></span><span> </span><span class="annot"><span class="annottext">r -&gt; r
+</span><a href="#local-6989586621679094547"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; m a) -&gt; (Builder m a -&gt; m a) -&gt; Builder m a -&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Builder m a -&gt; m a
+forall (m :: * -&gt; *) a. Builder m a -&gt; m a
+</span><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier hs-var">runBuilder</span></a></span></span></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span id="local-6989586621679094545"><span id="local-6989586621679094546"><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094540"><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094546"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094545"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094546"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094545"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>  </span><span id="local-6989586621679094538"><span class="annot"><span class="annottext">get :: Builder m s
+</span><a href="#local-6989586621679094538"><span class="hs-identifier hs-var hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m s -&gt; Builder m s
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">m s
+forall s (m :: * -&gt; *). MonadState s m =&gt; m s
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">get</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span id="local-6989586621679094537"><span class="annot"><span class="annottext">put :: s -&gt; Builder m ()
+</span><a href="#local-6989586621679094537"><span class="hs-identifier hs-var hs-var hs-var hs-var">put</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m () -&gt; Builder m ()
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m () -&gt; Builder m ()) -&gt; (s -&gt; m ()) -&gt; s -&gt; Builder m ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; m ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">put</span></a></span></span></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span id="local-6989586621679094535"><span id="local-6989586621679094536"><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094531"><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadWriter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094536"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094535"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadWriter</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094536"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094535"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-125"></span><span>  </span><span id="local-6989586621679094526"><span class="annot"><span class="annottext">tell :: w -&gt; Builder m ()
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var hs-var hs-var hs-var">tell</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m () -&gt; Builder m ()
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/transformers-0.5.6.2/src"><span class="hs-identifier hs-var">lift</span></a></span><span> </span><span class="annot"><span class="annottext">(m () -&gt; Builder m ()) -&gt; (w -&gt; m ()) -&gt; w -&gt; Builder m ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">w -&gt; m ()
+forall w (m :: * -&gt; *). MonadWriter w m =&gt; w -&gt; m ()
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">tell</span></a></span><span>
+</span><span id="line-126"></span><span>  </span><span id="local-6989586621679094524"><span class="annot"><span class="annottext">listen :: Builder m a -&gt; Builder m (a, w)
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var hs-var hs-var hs-var">listen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m (a, w) -&gt; Builder m (a, w)
+forall (m :: * -&gt; *) a. m a -&gt; Builder m a
+</span><a href="Passenv.Builder.html#mkBuilder"><span class="hs-identifier hs-var">mkBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">(m (a, w) -&gt; Builder m (a, w))
+-&gt; (Builder m a -&gt; m (a, w)) -&gt; Builder m a -&gt; Builder m (a, w)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; m (a, w)
+forall w (m :: * -&gt; *) a. MonadWriter w m =&gt; m a -&gt; m (a, w)
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">listen</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; m (a, w))
+-&gt; (Builder m a -&gt; m a) -&gt; Builder m a -&gt; m (a, w)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Builder m a -&gt; m a
+forall (m :: * -&gt; *) a. Builder m a -&gt; m a
+</span><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier hs-var">runBuilder</span></a></span><span>
+</span><span id="line-127"></span><span>  </span><span id="local-6989586621679094522"><span class="annot"><span class="annottext">pass :: Builder m (a, w -&gt; w) -&gt; Builder m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var hs-var hs-var hs-var">pass</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Builder m a
+forall (m :: * -&gt; *) a. m a -&gt; Builder m a
+</span><a href="Passenv.Builder.html#mkBuilder"><span class="hs-identifier hs-var">mkBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; Builder m a)
+-&gt; (Builder m (a, w -&gt; w) -&gt; m a)
+-&gt; Builder m (a, w -&gt; w)
+-&gt; Builder m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">m (a, w -&gt; w) -&gt; m a
+forall w (m :: * -&gt; *) a. MonadWriter w m =&gt; m (a, w -&gt; w) -&gt; m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">pass</span></a></span><span> </span><span class="annot"><span class="annottext">(m (a, w -&gt; w) -&gt; m a)
+-&gt; (Builder m (a, w -&gt; w) -&gt; m (a, w -&gt; w))
+-&gt; Builder m (a, w -&gt; w)
+-&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Builder m (a, w -&gt; w) -&gt; m (a, w -&gt; w)
+forall (m :: * -&gt; *) a. Builder m a -&gt; m a
+</span><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier hs-var">runBuilder</span></a></span></span></span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span id="local-6989586621679094519"><span id="local-6989586621679094520"><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094520"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094519"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094520"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094519"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621679094514"><span class="annot"><span class="annottext">throwError :: e -&gt; Builder m a
+</span><a href="#local-6989586621679094514"><span class="hs-identifier hs-var hs-var hs-var hs-var">throwError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Builder m a
+forall (m :: * -&gt; *) a. m a -&gt; Builder m a
+</span><a href="Passenv.Builder.html#mkBuilder"><span class="hs-identifier hs-var">mkBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; Builder m a) -&gt; (e -&gt; m a) -&gt; e -&gt; Builder m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">e -&gt; m a
+forall e (m :: * -&gt; *) a. MonadError e m =&gt; e -&gt; m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">throwError</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span id="local-6989586621679094513"><span class="annot"><span class="annottext">catchError :: Builder m a -&gt; (e -&gt; Builder m a) -&gt; Builder m a
+</span><a href="#local-6989586621679094513"><span class="hs-identifier hs-var hs-var hs-var hs-var">catchError</span></a></span></span><span> </span><span id="local-6989586621679094512"><span class="annot"><span class="annottext">m :: Builder m a
+</span><a href="#local-6989586621679094512"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679094511"><span class="annot"><span class="annottext">f :: e -&gt; Builder m a
+</span><a href="#local-6989586621679094511"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m a -&gt; Builder m a
+forall (m :: * -&gt; *) a. m a -&gt; Builder m a
+</span><a href="Passenv.Builder.html#mkBuilder"><span class="hs-identifier hs-var">mkBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">(m a -&gt; Builder m a) -&gt; m a -&gt; Builder m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">m a -&gt; (e -&gt; m a) -&gt; m a
+forall e (m :: * -&gt; *) a.
+MonadError e m =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">catchError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Builder m a -&gt; m a
+forall (m :: * -&gt; *) a. Builder m a -&gt; m a
+</span><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier hs-var">runBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Builder m a
+</span><a href="#local-6989586621679094512"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Builder m a -&gt; m a
+forall (m :: * -&gt; *) a. Builder m a -&gt; m a
+</span><a href="Passenv.Builder.html#runBuilder"><span class="hs-identifier hs-var">runBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">(Builder m a -&gt; m a) -&gt; (e -&gt; Builder m a) -&gt; e -&gt; m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">e -&gt; Builder m a
+</span><a href="#local-6989586621679094511"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-comment">----------------------------------------</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- IsString instance -------------------</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span id="local-6989586621679094509"><span id="local-6989586621679094510"><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094510"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">IsString</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094509"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">IsString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094510"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094509"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-137"></span><span>  </span><span id="local-6989586621679094506"><span class="annot"><span class="annottext">fromString :: String -&gt; Builder m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Builder m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Builder m a) -&gt; (String -&gt; a) -&gt; String -&gt; Builder m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; a
+forall a. IsString a =&gt; String -&gt; a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">fromString</span></a></span></span></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-comment">----------------------------------------</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- Has* classes ------------------------</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- | @r@ contains a password value.</span><span>
+</span><span id="line-143"></span><span class="hs-keyword">class</span><span> </span><span id="HasPassword"><span class="annot"><a href="Passenv.Builder.html#HasPassword"><span class="hs-identifier hs-var">HasPassword</span></a></span></span><span> </span><span id="local-6989586621679094505"><span class="annot"><a href="#local-6989586621679094505"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-comment">-- | A 'Builder' which returns the password value.</span><span>
+</span><span id="line-145"></span><span>  </span><span id="local-6989586621679094504"><span id="password"><span class="annot"><a href="Passenv.Builder.html#password"><span class="hs-identifier hs-type">password</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadReader</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094505"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094504"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094504"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- | @r@ contains key-value pairs.</span><span>
+</span><span id="line-148"></span><span class="hs-keyword">class</span><span> </span><span id="HasKeyValues"><span class="annot"><a href="Passenv.Builder.html#HasKeyValues"><span class="hs-identifier hs-var">HasKeyValues</span></a></span></span><span> </span><span id="local-6989586621679094659"><span class="annot"><a href="#local-6989586621679094659"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-comment">-- | Get the value of the given key, returning 'Nothing' if it is</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-comment">-- not found.</span><span>
+</span><span id="line-151"></span><span>  </span><span id="local-6989586621679094657"><span id="valueMaybe"><span class="annot"><a href="Passenv.Builder.html#valueMaybe"><span class="hs-identifier hs-type">valueMaybe</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadReader</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094659"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094657"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094657"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-comment">-- | Get the value of the given key, throwing a 'KeyValueException'</span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-comment">-- if it is not found.</span><span>
+</span><span id="line-155"></span><span>  </span><span id="local-6989586621679094501"><span id="value"><span class="annot"><a href="Passenv.Builder.html#value"><span class="hs-identifier hs-type">value</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-type">MonadReader</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094659"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094501"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier hs-type">MonadThrow</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094501"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Passenv.Builder.html#Builder"><span class="hs-identifier hs-type">Builder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094501"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span></span><span>
+</span><span id="line-156"></span><span>  </span><span id="local-6989586621679094499"><span class="annot"><a href="Passenv.Builder.html#value"><span class="hs-identifier hs-var hs-var">value</span></a></span><span> </span><span id="local-6989586621679094498"><span class="annot"><span class="annottext">key :: String
+</span><a href="#local-6989586621679094498"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Builder m (Maybe String)
+forall r (m :: * -&gt; *).
+(HasKeyValues r, MonadReader r m) =&gt;
+String -&gt; Builder m (Maybe String)
+</span><a href="Passenv.Builder.html#valueMaybe"><span class="hs-identifier hs-var">valueMaybe</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094498"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">Builder m (Maybe String)
+-&gt; (Maybe String -&gt; Builder m String) -&gt; Builder m String
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">&gt;&gt;=</span></a></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">KeyValueException -&gt; Builder m String
+forall (m :: * -&gt; *) e a. (MonadThrow m, Exception e) =&gt; e -&gt; m a
+</span><a href="../file:///nix/store/sfls6a6v47hr4syhjid6v73rm20v3c8s-exceptions-0.10.4-doc/share/doc/exceptions-0.10.4/html/src"><span class="hs-identifier hs-var">throwM</span></a></span><span> </span><span class="annot"><span class="annottext">(KeyValueException -&gt; Builder m String)
+-&gt; KeyValueException -&gt; Builder m String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; KeyValueException
+</span><a href="Passenv.Builder.html#KeyNotPresentError"><span class="hs-identifier hs-var">KeyNotPresentError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094498"><span class="hs-identifier hs-var">key</span></a></span><span>
+</span><span id="line-158"></span><span>    </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621679094496"><span class="annot"><span class="annottext">v :: String
+</span><a href="#local-6989586621679094496"><span class="hs-identifier hs-var">v</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Builder m String
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094496"><span class="hs-identifier hs-var">v</span></a></span></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- | An exception for operations on a value which 'HasKeyValues'.</span><span>
+</span><span id="line-161"></span><span class="hs-keyword">data</span><span> </span><span id="KeyValueException"><span class="annot"><a href="Passenv.Builder.html#KeyValueException"><span class="hs-identifier hs-var">KeyValueException</span></a></span></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-comment">-- | The given key is not present.</span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="KeyNotPresentError"><span class="annot"><a href="Passenv.Builder.html#KeyNotPresentError"><span class="hs-identifier hs-var">KeyNotPresentError</span></a></span></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679094488"><span id="local-6989586621679094490"><span id="local-6989586621679094492"><span class="annot"><span class="annottext">Show KeyValueException
+Typeable KeyValueException
+(Typeable KeyValueException, Show KeyValueException) =&gt;
+(KeyValueException -&gt; SomeException)
+-&gt; (SomeException -&gt; Maybe KeyValueException)
+-&gt; (KeyValueException -&gt; String)
+-&gt; Exception KeyValueException
+SomeException -&gt; Maybe KeyValueException
+KeyValueException -&gt; String
+KeyValueException -&gt; SomeException
+forall e.
+(Typeable e, Show e) =&gt;
+(e -&gt; SomeException)
+-&gt; (SomeException -&gt; Maybe e) -&gt; (e -&gt; String) -&gt; Exception e
+displayException :: KeyValueException -&gt; String
+$cdisplayException :: KeyValueException -&gt; String
+fromException :: SomeException -&gt; Maybe KeyValueException
+$cfromException :: SomeException -&gt; Maybe KeyValueException
+toException :: KeyValueException -&gt; SomeException
+$ctoException :: KeyValueException -&gt; SomeException
+$cp2Exception :: Show KeyValueException
+$cp1Exception :: Typeable KeyValueException
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Exception</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679094482"><span id="local-6989586621679094485"><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="Passenv.Builder.html#KeyValueException"><span class="hs-identifier hs-type">KeyValueException</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-167"></span><span>  </span><span id="local-6989586621679094481"><span class="annot"><span class="annottext">show :: KeyValueException -&gt; String
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#KeyNotPresentError"><span class="hs-identifier hs-type">KeyNotPresentError</span></a></span><span> </span><span id="local-6989586621679094479"><span class="annot"><span class="annottext">key :: String
+</span><a href="#local-6989586621679094479"><span class="hs-identifier hs-var">key</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">concat</span></a></span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="hs-string">&quot;Key &quot;</span></span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ShowS
+forall a. Show a =&gt; a -&gt; String
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094479"><span class="hs-identifier hs-var">key</span></a></span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-string">&quot; not present in password file.&quot;</span></span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-172"></span></pre></body></html>

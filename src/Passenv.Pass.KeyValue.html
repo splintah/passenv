@@ -1,0 +1,399 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{-
+passenv
+Copyright (C) 2020 Splinter Suidman
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see &lt;http://www.gnu.org/licenses/&gt;.
+-}</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-pragma">{-# LANGUAGE DerivingStrategies #-}</span><span>
+</span><span id="line-15"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings  #-}</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">{-|
+Module      : Passenv.KeyValue
+Description : A file format with a password and key-value pairs.
+Copyright   : (c) Splinter Suidman, 2020
+License     : GPL-3
+Portability : portable
+
+A file format with a password and key-value pairs.
+-}</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Passenv.Pass.KeyValue</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFile"><span class="hs-identifier">KeyValueFile</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier">KeyValueFileOptions</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Parsers</span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#keyValueFile"><span class="hs-identifier">keyValueFile</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#keyValueFileWith"><span class="hs-identifier">keyValueFileWith</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier">Parser</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Re-exports</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Builder.html#HasPassword"><span class="hs-identifier">HasPassword</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Passenv.Builder.html#HasKeyValues"><span class="hs-identifier">HasKeyValues</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Control.Applicative</span></a></span><span>        </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">many</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">some</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">Control.Monad.Reader</span></a></span><span>       </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier">asks</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Data.Char</span></a></span><span>                  </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">isSpace</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/wxzra6bs50hyln2vrzymyd9cilvx1pmw-data-default-0.7.1.1-doc/share/doc/data-default-0.7.1.1/html/src"><span class="hs-identifier">Data.Default</span></a></span><span>               </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/v1wbg2xm53r9kydg5nqchqpc805w3z2q-data-default-class-0.1.2.0-doc/share/doc/data-default-class-0.1.2.0/html/src"><span class="hs-identifier">Default</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/v1wbg2xm53r9kydg5nqchqpc805w3z2q-data-default-class-0.1.2.0-doc/share/doc/data-default-class-0.1.2.0/html/src"><span class="hs-identifier">def</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/containers-0.6.2.1/src"><span class="hs-identifier">Data.Map.Strict</span></a></span><span>            </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/containers-0.6.2.1/src"><span class="hs-identifier">Map</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/containers-0.6.2.1/src"><span class="hs-identifier">Data.Map.Strict</span></a></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Data.Void</span></a></span><span>                  </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier">Void</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Passenv.Builder.html"><span class="hs-identifier">Passenv.Builder</span></a></span><span>            </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#HasKeyValues"><span class="hs-identifier">HasKeyValues</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#valueMaybe"><span class="hs-identifier">valueMaybe</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>                                             </span><span class="annot"><a href="Passenv.Builder.html#HasPassword"><span class="hs-identifier">HasPassword</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Builder.html#password"><span class="hs-identifier">password</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Passenv.Util.html"><span class="hs-identifier">Passenv.Util</span></a></span><span>               </span><span class="hs-special">(</span><span class="annot"><a href="Passenv.Util.html#isEol"><span class="hs-identifier">isEol</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier">Text.Megaparsec</span></a></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier">Text.Megaparsec.Char</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier">Text.Megaparsec.Char.Lexer</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Lexer</span></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- | The type of the parser.</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">type</span><span> </span><span id="Parser"><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier hs-var">Parser</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-type">Parsec</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">Void</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | A key-value file is a password file format that contains:</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- * On the first line: a password.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- * On all other lines: key-value pairs in the format @key: value@.</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--   The spaces before and after the @:@ will be ignored; this means</span><span>
+</span><span id="line-62"></span><span class="hs-comment">--   that keys cannot contain spaces, and values cannot start with</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--   spaces.</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- This file format is often used by browser extensions for @pass@.</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- This file format can be parsed using the 'keyValueFile' and</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- 'keyValueFileWith' parsers.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- The parser also supports comments, starting with whatever character</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- you like. You can configure this character using</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- 'kvFileOptionsComment'. Comments must appear on their own line, so</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- the comment character /can/ appear inside values, as can be seen in</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- the following example.</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- === Example</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- &gt; myverygoodpassword</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- &gt; username: myusername</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- &gt; email:user@example.com</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- &gt; # A line comment, and an empty line:</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- &gt; key         : value</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- &gt; test: this is not # a comment</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- With the default options, parsing this file will return:</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- &gt; KeyValueFile</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- &gt;   { kvFilePassword = &quot;myverygoodpassword&quot;</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- &gt;   , kvFileMap = 'Map.fromList'</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- &gt;     [ (&quot;email&quot;,&quot;user@example.com&quot;)</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- &gt;     , (&quot;key&quot;,&quot;value&quot;)</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- &gt;     , (&quot;test&quot;, &quot;this is not # a comment&quot;)</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- &gt;     , (&quot;username&quot;,&quot;myusername&quot;)</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- &gt;     ]</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- &gt;   }</span><span>
+</span><span id="line-97"></span><span class="hs-keyword">data</span><span> </span><span id="KeyValueFile"><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFile"><span class="hs-identifier hs-var">KeyValueFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="KeyValueFile"><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFile"><span class="hs-identifier hs-var">KeyValueFile</span></a></span></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="kvFilePassword"><span class="annot"><span class="annottext">KeyValueFile -&gt; String
+</span><a href="Passenv.Pass.KeyValue.html#kvFilePassword"><span class="hs-identifier hs-var hs-var">kvFilePassword</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-comment">-- ^ The password.</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="kvFileMap"><span class="annot"><span class="annottext">KeyValueFile -&gt; Map String String
+</span><a href="Passenv.Pass.KeyValue.html#kvFileMap"><span class="hs-identifier hs-var hs-var">kvFileMap</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/containers-0.6.2.1/src"><span class="hs-identifier hs-type">Map</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-comment">-- ^ The key-value pairs.</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679095039"><span id="local-6989586621679095041"><span id="local-6989586621679095043"><span class="annot"><span class="annottext">Int -&gt; KeyValueFile -&gt; ShowS
+[KeyValueFile] -&gt; ShowS
+KeyValueFile -&gt; String
+(Int -&gt; KeyValueFile -&gt; ShowS)
+-&gt; (KeyValueFile -&gt; String)
+-&gt; ([KeyValueFile] -&gt; ShowS)
+-&gt; Show KeyValueFile
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [KeyValueFile] -&gt; ShowS
+$cshowList :: [KeyValueFile] -&gt; ShowS
+show :: KeyValueFile -&gt; String
+$cshow :: KeyValueFile -&gt; String
+showsPrec :: Int -&gt; KeyValueFile -&gt; ShowS
+$cshowsPrec :: Int -&gt; KeyValueFile -&gt; ShowS
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Passenv.Builder.html#HasPassword"><span class="hs-identifier hs-type">HasPassword</span></a></span><span>  </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFile"><span class="hs-identifier hs-type">KeyValueFile</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621679095035"><span class="annot"><span class="annottext">password :: Builder m String
+</span><a href="#local-6989586621679095035"><span class="hs-identifier hs-var hs-var hs-var hs-var">password</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(KeyValueFile -&gt; String) -&gt; Builder m String
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; a) -&gt; m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">asks</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFile -&gt; String
+</span><a href="Passenv.Pass.KeyValue.html#kvFilePassword"><span class="hs-identifier hs-var hs-var">kvFilePassword</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679095032"><span class="annot"><a href="Passenv.Builder.html#HasKeyValues"><span class="hs-identifier hs-type">HasKeyValues</span></a></span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFile"><span class="hs-identifier hs-type">KeyValueFile</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>  </span><span id="local-6989586621679095030"><span class="annot"><span class="annottext">valueMaybe :: String -&gt; Builder m (Maybe String)
+</span><a href="#local-6989586621679095030"><span class="hs-identifier hs-var hs-var hs-var hs-var">valueMaybe</span></a></span></span><span> </span><span id="local-6989586621679095029"><span class="annot"><span class="annottext">key :: String
+</span><a href="#local-6989586621679095029"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(KeyValueFile -&gt; Maybe String) -&gt; Builder m (Maybe String)
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; a) -&gt; m a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/mtl-2.2.2/src"><span class="hs-identifier hs-var">asks</span></a></span><span> </span><span class="annot"><span class="annottext">((KeyValueFile -&gt; Maybe String) -&gt; Builder m (Maybe String))
+-&gt; (KeyValueFile -&gt; Maybe String) -&gt; Builder m (Maybe String)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; Map String String -&gt; Maybe String
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/containers-0.6.2.1/src"><span class="hs-identifier hs-var">Map.lookup</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679095029"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">(Map String String -&gt; Maybe String)
+-&gt; (KeyValueFile -&gt; Map String String)
+-&gt; KeyValueFile
+-&gt; Maybe String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFile -&gt; Map String String
+</span><a href="Passenv.Pass.KeyValue.html#kvFileMap"><span class="hs-identifier hs-var hs-var">kvFileMap</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- | The options for parsing a 'KeyValueFile'.</span><span>
+</span><span id="line-111"></span><span class="hs-comment">--</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- This type has a 'Default' instance, so you can use 'def' as the</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- default options.</span><span>
+</span><span id="line-114"></span><span class="hs-keyword">data</span><span> </span><span id="KeyValueFileOptions"><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-var">KeyValueFileOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="KeyValueFileOptions"><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-var">KeyValueFileOptions</span></a></span></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="kvFileOptionsComment"><span class="annot"><span class="annottext">KeyValueFileOptions -&gt; Maybe Char
+</span><a href="Passenv.Pass.KeyValue.html#kvFileOptionsComment"><span class="hs-identifier hs-var hs-var">kvFileOptionsComment</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/ghc-prim-0.5.3/src"><span class="hs-identifier hs-type">Char</span></a></span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-comment">-- ^ The character that starts comments. If 'Nothing', comments</span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-comment">-- will not be parsed. If @'Just' c@ for some @c :: 'Char'@, the</span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-comment">-- character @c@ will start comments.</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-comment">-- See 'KeyValueFile' for more information about comments.</span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-comment">-- 'Default': @'Just' \'#\'@.</span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679095019"><span id="local-6989586621679095021"><span id="local-6989586621679095023"><span class="annot"><span class="annottext">Int -&gt; KeyValueFileOptions -&gt; ShowS
+[KeyValueFileOptions] -&gt; ShowS
+KeyValueFileOptions -&gt; String
+(Int -&gt; KeyValueFileOptions -&gt; ShowS)
+-&gt; (KeyValueFileOptions -&gt; String)
+-&gt; ([KeyValueFileOptions] -&gt; ShowS)
+-&gt; Show KeyValueFileOptions
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+showList :: [KeyValueFileOptions] -&gt; ShowS
+$cshowList :: [KeyValueFileOptions] -&gt; ShowS
+show :: KeyValueFileOptions -&gt; String
+$cshow :: KeyValueFileOptions -&gt; String
+showsPrec :: Int -&gt; KeyValueFileOptions -&gt; ShowS
+$cshowsPrec :: Int -&gt; KeyValueFileOptions -&gt; ShowS
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679095011"><span id="local-6989586621679095013"><span id="local-6989586621679095015"><span id="local-6989586621679095017"><span class="annot"><span class="annottext">ReadPrec [KeyValueFileOptions]
+ReadPrec KeyValueFileOptions
+Int -&gt; ReadS KeyValueFileOptions
+ReadS [KeyValueFileOptions]
+(Int -&gt; ReadS KeyValueFileOptions)
+-&gt; ReadS [KeyValueFileOptions]
+-&gt; ReadPrec KeyValueFileOptions
+-&gt; ReadPrec [KeyValueFileOptions]
+-&gt; Read KeyValueFileOptions
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+readListPrec :: ReadPrec [KeyValueFileOptions]
+$creadListPrec :: ReadPrec [KeyValueFileOptions]
+readPrec :: ReadPrec KeyValueFileOptions
+$creadPrec :: ReadPrec KeyValueFileOptions
+readList :: ReadS [KeyValueFileOptions]
+$creadList :: ReadS [KeyValueFileOptions]
+readsPrec :: Int -&gt; ReadS KeyValueFileOptions
+$creadsPrec :: Int -&gt; ReadS KeyValueFileOptions
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></a></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679095006"><span id="local-6989586621679095008"><span class="annot"><span class="annottext">KeyValueFileOptions -&gt; KeyValueFileOptions -&gt; Bool
+(KeyValueFileOptions -&gt; KeyValueFileOptions -&gt; Bool)
+-&gt; (KeyValueFileOptions -&gt; KeyValueFileOptions -&gt; Bool)
+-&gt; Eq KeyValueFileOptions
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+/= :: KeyValueFileOptions -&gt; KeyValueFileOptions -&gt; Bool
+$c/= :: KeyValueFileOptions -&gt; KeyValueFileOptions -&gt; Bool
+== :: KeyValueFileOptions -&gt; KeyValueFileOptions -&gt; Bool
+$c== :: KeyValueFileOptions -&gt; KeyValueFileOptions -&gt; Bool
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/ghc-prim-0.5.3/src"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- &gt; def = KeyValueFileOptions</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- &gt;   { kvFileOptionsComment = Just '#'</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- &gt;   }</span><span>
+</span><span id="line-129"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../file:///nix/store/v1wbg2xm53r9kydg5nqchqpc805w3z2q-data-default-class-0.1.2.0-doc/share/doc/data-default-class-0.1.2.0/html/src"><span class="hs-identifier hs-type">Default</span></a></span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-type">KeyValueFileOptions</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621679095002"><span class="annot"><span class="annottext">def :: KeyValueFileOptions
+</span><a href="#local-6989586621679095002"><span class="hs-identifier hs-var hs-var hs-var hs-var">def</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions :: Maybe Char -&gt; KeyValueFileOptions
+</span><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-type hs-type">KeyValueFileOptions</span></a></span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">kvFileOptionsComment :: Maybe Char
+</span><a href="Passenv.Pass.KeyValue.html#kvFileOptionsComment"><span class="hs-identifier hs-var">kvFileOptionsComment</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Maybe Char
+forall a. a -&gt; Maybe a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="hs-char">'#'</span></span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><a href="Passenv.Pass.KeyValue.html#spaceConsumer"><span class="hs-identifier hs-type">spaceConsumer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-type">KeyValueFileOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span id="spaceConsumer"><span class="annot"><span class="annottext">spaceConsumer :: KeyValueFileOptions -&gt; Parser ()
+</span><a href="Passenv.Pass.KeyValue.html#spaceConsumer"><span class="hs-identifier hs-var hs-var">spaceConsumer</span></a></span></span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-type">KeyValueFileOptions</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">kvFileOptionsComment :: KeyValueFileOptions -&gt; Maybe Char
+</span><a href="Passenv.Pass.KeyValue.html#kvFileOptionsComment"><span class="hs-identifier hs-var">kvFileOptionsComment</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Char
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-136"></span><span>  </span><span class="annot"><span class="annottext">Parser () -&gt; Parser () -&gt; Parser () -&gt; Parser ()
+forall e s (m :: * -&gt; *).
+MonadParsec e s m =&gt;
+m () -&gt; m () -&gt; m () -&gt; m ()
+</span><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-var">Lexer.space</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ()
+forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+m ()
+</span><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-var">space1</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ()
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">empty</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ()
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-137"></span><span class="annot"><a href="Passenv.Pass.KeyValue.html#spaceConsumer"><span class="hs-identifier hs-var">spaceConsumer</span></a></span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-type">KeyValueFileOptions</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">kvFileOptionsComment :: KeyValueFileOptions -&gt; Maybe Char
+</span><a href="Passenv.Pass.KeyValue.html#kvFileOptionsComment"><span class="hs-identifier hs-var">kvFileOptionsComment</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621679094996"><span class="annot"><span class="annottext">c :: Char
+</span><a href="#local-6989586621679094996"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><span class="annottext">Parser () -&gt; Parser () -&gt; Parser () -&gt; Parser ()
+forall e s (m :: * -&gt; *).
+MonadParsec e s m =&gt;
+m () -&gt; m () -&gt; m () -&gt; m ()
+</span><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-var">Lexer.space</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ()
+forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+m ()
+</span><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-var">space1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tokens String -&gt; Parser ()
+forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Tokens s -&gt; m ()
+</span><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-var">Lexer.skipLineComment</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679094996"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Parser ()
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span id="local-6989586621679095074"><span class="annot"><a href="Passenv.Pass.KeyValue.html#lexeme"><span class="hs-identifier hs-type">lexeme</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-type">KeyValueFileOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679095074"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679095074"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-141"></span><span id="lexeme"><span class="annot"><span class="annottext">lexeme :: KeyValueFileOptions -&gt; Parser a -&gt; Parser a
+</span><a href="Passenv.Pass.KeyValue.html#lexeme"><span class="hs-identifier hs-var hs-var">lexeme</span></a></span></span><span> </span><span id="local-6989586621679094993"><span class="annot"><span class="annottext">opts :: KeyValueFileOptions
+</span><a href="#local-6989586621679094993"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser () -&gt; Parser a -&gt; Parser a
+forall e s (m :: * -&gt; *) a. MonadParsec e s m =&gt; m () -&gt; m a -&gt; m a
+</span><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-var">Lexer.lexeme</span></a></span><span> </span><span class="annot"><span class="annottext">(Parser () -&gt; Parser a -&gt; Parser a)
+-&gt; Parser () -&gt; Parser a -&gt; Parser a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions -&gt; Parser ()
+</span><a href="Passenv.Pass.KeyValue.html#spaceConsumer"><span class="hs-identifier hs-var">spaceConsumer</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+</span><a href="#local-6989586621679094993"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- | Parse a 'KeyValueFile' with 'def'ault 'KeyValueFileOptions'.</span><span>
+</span><span id="line-144"></span><span class="annot"><a href="Passenv.Pass.KeyValue.html#keyValueFile"><span class="hs-identifier hs-type">keyValueFile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFile"><span class="hs-identifier hs-type">KeyValueFile</span></a></span><span>
+</span><span id="line-145"></span><span id="keyValueFile"><span class="annot"><span class="annottext">keyValueFile :: Parser KeyValueFile
+</span><a href="Passenv.Pass.KeyValue.html#keyValueFile"><span class="hs-identifier hs-var hs-var">keyValueFile</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions -&gt; Parser KeyValueFile
+</span><a href="Passenv.Pass.KeyValue.html#keyValueFileWith"><span class="hs-identifier hs-var">keyValueFileWith</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+forall a. Default a =&gt; a
+</span><a href="../file:///nix/store/v1wbg2xm53r9kydg5nqchqpc805w3z2q-data-default-class-0.1.2.0-doc/share/doc/data-default-class-0.1.2.0/html/src"><span class="hs-identifier hs-var">def</span></a></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- | Parse a 'KeyValueFile' with the given 'KeyValueFileOptions'.</span><span>
+</span><span id="line-148"></span><span class="annot"><a href="Passenv.Pass.KeyValue.html#keyValueFileWith"><span class="hs-identifier hs-type">keyValueFileWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-type">KeyValueFileOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFile"><span class="hs-identifier hs-type">KeyValueFile</span></a></span><span>
+</span><span id="line-149"></span><span id="keyValueFileWith"><span class="annot"><span class="annottext">keyValueFileWith :: KeyValueFileOptions -&gt; Parser KeyValueFile
+</span><a href="Passenv.Pass.KeyValue.html#keyValueFileWith"><span class="hs-identifier hs-var hs-var">keyValueFileWith</span></a></span></span><span> </span><span id="local-6989586621679094991"><span class="annot"><span class="annottext">opts :: KeyValueFileOptions
+</span><a href="#local-6989586621679094991"><span class="hs-identifier hs-var">opts</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Map String String -&gt; KeyValueFile
+</span><a href="Passenv.Pass.KeyValue.html#KeyValueFile"><span class="hs-identifier hs-var">KeyValueFile</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Map String String -&gt; KeyValueFile)
+-&gt; ParsecT Void String Identity String
+-&gt; ParsecT Void String Identity (Map String String -&gt; KeyValueFile)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+-&gt; ParsecT Void String Identity String
+-&gt; ParsecT Void String Identity String
+forall a. KeyValueFileOptions -&gt; Parser a -&gt; Parser a
+</span><a href="Passenv.Pass.KeyValue.html#lexeme"><span class="hs-identifier hs-var">lexeme</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+</span><a href="#local-6989586621679094991"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT Void String Identity String
+</span><a href="Passenv.Pass.KeyValue.html#line"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT Void String Identity (Map String String -&gt; KeyValueFile)
+-&gt; ParsecT Void String Identity (Map String String)
+-&gt; Parser KeyValueFile
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+-&gt; ParsecT Void String Identity (Map String String)
+</span><a href="Passenv.Pass.KeyValue.html#keyValueMap"><span class="hs-identifier hs-var">keyValueMap</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+</span><a href="#local-6989586621679094991"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- | Parse the key-value pairs.</span><span>
+</span><span id="line-152"></span><span class="annot"><a href="Passenv.Pass.KeyValue.html#keyValueMap"><span class="hs-identifier hs-type">keyValueMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-type">KeyValueFileOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/containers-0.6.2.1/src"><span class="hs-identifier hs-type">Map</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span id="keyValueMap"><span class="annot"><span class="annottext">keyValueMap :: KeyValueFileOptions
+-&gt; ParsecT Void String Identity (Map String String)
+</span><a href="Passenv.Pass.KeyValue.html#keyValueMap"><span class="hs-identifier hs-var hs-var">keyValueMap</span></a></span></span><span> </span><span id="local-6989586621679094987"><span class="annot"><span class="annottext">opts :: KeyValueFileOptions
+</span><a href="#local-6989586621679094987"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(String, String)] -&gt; Map String String
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/containers-0.6.2.1/src"><span class="hs-identifier hs-var">Map.fromList</span></a></span><span> </span><span class="annot"><span class="annottext">([(String, String)] -&gt; Map String String)
+-&gt; ParsecT Void String Identity [(String, String)]
+-&gt; ParsecT Void String Identity (Map String String)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT Void String Identity (String, String)
+-&gt; ParsecT Void String Identity [(String, String)]
+forall (m :: * -&gt; *) a. MonadPlus m =&gt; m a -&gt; m [a]
+</span><a href="../file:///nix/store/di8627ldi0sl5d7w023dghhnampb1fcz-parser-combinators-1.1.0-doc/share/doc/parser-combinators-1.1.0/html/src"><span class="hs-identifier hs-var">many</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">KeyValueFileOptions
+-&gt; ParsecT Void String Identity (String, String)
+</span><a href="Passenv.Pass.KeyValue.html#keyValuePair"><span class="hs-identifier hs-var">keyValuePair</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+</span><a href="#local-6989586621679094987"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- | Parse a single key-value pair.</span><span>
+</span><span id="line-156"></span><span class="annot"><a href="Passenv.Pass.KeyValue.html#keyValuePair"><span class="hs-identifier hs-type">keyValuePair</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#KeyValueFileOptions"><span class="hs-identifier hs-type">KeyValueFileOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span id="keyValuePair"><span class="annot"><span class="annottext">keyValuePair :: KeyValueFileOptions
+-&gt; ParsecT Void String Identity (String, String)
+</span><a href="Passenv.Pass.KeyValue.html#keyValuePair"><span class="hs-identifier hs-var hs-var">keyValuePair</span></a></span></span><span> </span><span id="local-6989586621679094983"><span class="annot"><span class="annottext">opts :: KeyValueFileOptions
+</span><a href="#local-6989586621679094983"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-158"></span><span>  </span><span id="local-6989586621679094982"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094982"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+-&gt; ParsecT Void String Identity String
+-&gt; ParsecT Void String Identity String
+forall a. KeyValueFileOptions -&gt; Parser a -&gt; Parser a
+</span><a href="Passenv.Pass.KeyValue.html#lexeme"><span class="hs-identifier hs-var">lexeme</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+</span><a href="#local-6989586621679094983"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">(ParsecT Void String Identity String
+ -&gt; ParsecT Void String Identity String)
+-&gt; ParsecT Void String Identity String
+-&gt; ParsecT Void String Identity String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String
+-&gt; (Token String -&gt; Bool)
+-&gt; ParsecT Void String Identity (Tokens String)
+forall e s (m :: * -&gt; *).
+MonadParsec e s m =&gt;
+Maybe String -&gt; (Token s -&gt; Bool) -&gt; m (Tokens s)
+</span><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-var">takeWhile1P</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String
+forall a. Maybe a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679094980"><span class="annot"><span class="annottext">c :: Token String
+</span><a href="#local-6989586621679094980"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char
+Token String
+</span><a href="#local-6989586621679094980"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/ghc-prim-0.5.3/src"><span class="hs-operator hs-var">/=</span></a></span><span> </span><span class="annot"><span class="hs-char">':'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/ghc-prim-0.5.3/src"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/ghc-prim-0.5.3/src"><span class="hs-identifier hs-var">not</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">isSpace</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+Token String
+</span><a href="#local-6989586621679094980"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions -&gt; Parser Char -&gt; Parser Char
+forall a. KeyValueFileOptions -&gt; Parser a -&gt; Parser a
+</span><a href="Passenv.Pass.KeyValue.html#lexeme"><span class="hs-identifier hs-var">lexeme</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+</span><a href="#local-6989586621679094983"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">(Parser Char -&gt; Parser Char) -&gt; Parser Char -&gt; Parser Char
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Token String -&gt; ParsecT Void String Identity (Token String)
+forall e s (m :: * -&gt; *).
+(MonadParsec e s m, Token s ~ Char) =&gt;
+Token s -&gt; m (Token s)
+</span><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-var">char</span></a></span><span> </span><span class="annot"><span class="annottext">Token String
+</span><span class="hs-char">':'</span></span><span>
+</span><span id="line-160"></span><span>  </span><span id="local-6989586621679094975"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094975"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+-&gt; ParsecT Void String Identity String
+-&gt; ParsecT Void String Identity String
+forall a. KeyValueFileOptions -&gt; Parser a -&gt; Parser a
+</span><a href="Passenv.Pass.KeyValue.html#lexeme"><span class="hs-identifier hs-var">lexeme</span></a></span><span> </span><span class="annot"><span class="annottext">KeyValueFileOptions
+</span><a href="#local-6989586621679094983"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">ParsecT Void String Identity String
+</span><a href="Passenv.Pass.KeyValue.html#line"><span class="hs-identifier hs-var">line</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="annottext">(String, String) -&gt; ParsecT Void String Identity (String, String)
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094982"><span class="hs-identifier hs-var">key</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679094975"><span class="hs-identifier hs-var">val</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span class="annot"><a href="Passenv.Pass.KeyValue.html#line"><span class="hs-identifier hs-type">line</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Passenv.Pass.KeyValue.html#Parser"><span class="hs-identifier hs-type">Parser</span></a></span><span> </span><span class="annot"><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-164"></span><span id="line"><span class="annot"><span class="annottext">line :: ParsecT Void String Identity String
+</span><a href="Passenv.Pass.KeyValue.html#line"><span class="hs-identifier hs-var hs-var">line</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe String
+-&gt; (Token String -&gt; Bool)
+-&gt; ParsecT Void String Identity (Tokens String)
+forall e s (m :: * -&gt; *).
+MonadParsec e s m =&gt;
+Maybe String -&gt; (Token s -&gt; Bool) -&gt; m (Tokens s)
+</span><a href="../file:///nix/store/vvy8j2b0hxykip2q85xx7cz1igwh6i87-megaparsec-7.0.5-doc/share/doc/megaparsec-7.0.5/html/src"><span class="hs-identifier hs-var">takeWhileP</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe String
+forall a. Maybe a
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/ghc-prim-0.5.3/src"><span class="hs-identifier hs-var">not</span></a></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (Char -&gt; Bool) -&gt; Char -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="../file:///nix/store/643i4j9az5rc0v7sjvla3akwq5jhgmkz-ghc-8.8.3-doc/share/doc/ghc/html/libraries/base-4.13.0.0/src"><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="Passenv.Util.html#isEol"><span class="hs-identifier hs-var">isEol</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span></pre></body></html>
