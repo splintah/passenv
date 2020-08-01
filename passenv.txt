@@ -396,6 +396,13 @@ PassenvOptions :: Bool -> PassenvOptions
 --   <a>Default</a>: <a>True</a>.
 [passenvSearchPath] :: PassenvOptions -> Bool
 
+-- | An exception for passenv functions.
+data PassenvException
+
+-- | Wrong or not enough arguments were supplied. The <a>String</a>
+--   describes the intended usage.
+ArgumentsError :: String -> PassenvException
+
 -- | <a>pass</a> <tt>f</tt> <tt>b</tt>: read a file named <tt>f</tt> from
 --   the password store, parse it as a <a>PasswordFile</a>, run the builder
 --   <tt>b</tt> that builds values of type <tt>a</tt> in a context with a
