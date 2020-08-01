@@ -13,6 +13,11 @@ But: you don't need to know Haskell to write a simple passenv configuration. The
 passenv EDSL *should* be abstract enough for someone to use it without knowing
 Haskell.
 
+## Documentation
+
+[The Haddock documentation](https://splintah.github.io/passenv/) is
+automatically built and deployed to GitHub pages.
+
 ## Example
 
 Suppose you have a password file with the following files:
@@ -79,9 +84,10 @@ Let's look at this example line by line.
 {-# LANGUAGE OverloadedStrings #-}
 ```
 
-This line enables the `OverloadedStrings` language extension. See the
-documentation for `Passenv.Builder` for more information.
-<!-- TODO: link to documentation. -->
+This line enables the `OverloadedStrings` language extension. See [the
+documentation for
+`Passenv.Builder`](https://splintah.github.io/passenv/Passenv-Builder.html)
+for more information.
 
 ```haskell
 import Passenv

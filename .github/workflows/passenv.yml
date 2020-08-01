@@ -1,0 +1,42 @@
+name: "passenv"
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    # Install Nix.
+    - uses: cachix/install-nix-action@v10
+      with:
+        nix_path: nixpkgs=channel:nixos-20.03
+
+    # Pull from and push binaries to Cachix.
+    - uses: cachix/cachix-action@v6
+      with:
+        name: splintah
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+      # Allow Cachix to fail.
+      continue-on-error: true
+
+    # Build.
+    - name: Build
+      run: |
+        nix-build default.nix
+
+    # Build Haddock documentation.
+    - name: Build Haddock documentation
+      run: |
+        nix-build doc.nix
+
+    # Deploy Haddock documentation to GitHub pages.
+    - name: Deploy Haddock documentation
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./result-doc/share/doc/passenv-0.0.0/html
+        publish_branch: doc
