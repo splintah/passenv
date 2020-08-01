@@ -32,6 +32,7 @@ module Passenv
   ( passenv
   , passenvWith
   , PassenvOptions (..)
+  , PassenvException (..)
     -- ** Re-exports
     -- *** From "Passenv.Pass"
   , pass
