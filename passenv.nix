@@ -1,10 +1,13 @@
 { mkDerivation, base, containers, data-default, exceptions
 , megaparsec, mtl, process, stdenv, unix
 }:
-mkDerivation {
+mkDerivation rec {
   pname = "passenv";
   version = "0.0.0";
-  src = ./.;
+  src = builtins.path {
+    path = ./.;
+    name = "${pname}-src";
+  };
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
